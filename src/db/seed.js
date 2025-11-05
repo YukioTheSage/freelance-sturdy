@@ -1,4 +1,5 @@
 const { randomUUID } = require('crypto');
+const { getClient } = require('./queries');
 const pool = require('../config/database');
 
 const TABLES = [
@@ -26,7 +27,7 @@ const insertMany = async (connection, sql, rows) => {
 };
 
 const seed = async () => {
-  const connection = await pool.connect();
+  const connection = await getClient();
 
   try {
     console.log('Resetting existing data...');

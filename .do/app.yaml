@@ -1,18 +1,11 @@
 name: freelance-platform
 region: nyc
 
-# PostgreSQL Database
-databases:
-  - name: freelance-platform-db
-    engine: PG
-    production: true
-    version: "15"
-
 # Backend API Service
 services:
   - name: api
     github:
-      repo: your-username/your-repo-name
+      repo: YukioTheSage/freelance-sturdy
       branch: main
       deploy_on_push: true
     source_dir: /
@@ -48,25 +41,16 @@ services:
       - key: JWT_REFRESH_EXPIRES_IN
         value: "7d"
       - key: CLIENT_URL
-        value: ${APP_URL}
-      - key: DATABASE_URL
-        value: ${freelance-platform-db.DATABASE_URL}
-      - key: DB_HOST
-        value: ${freelance-platform-db.HOSTNAME}
-      - key: DB_PORT
-        value: ${freelance-platform-db.PORT}
-      - key: DB_NAME
-        value: ${freelance-platform-db.DATABASE}
-      - key: DB_USER
-        value: ${freelance-platform-db.USERNAME}
-      - key: DB_PASSWORD
-        value: ${freelance-platform-db.PASSWORD}
+        value: ${web.PUBLIC_URL}
+      - key: POSTGRES_URL
+        value: ${POSTGRES_URL}
+        type: SECRET
 
 # Frontend Static Site
 static_sites:
   - name: web
     github:
-      repo: your-username/your-repo-name
+      repo: YukioTheSage/freelance-sturdy
       branch: main
       deploy_on_push: true
     source_dir: /client
