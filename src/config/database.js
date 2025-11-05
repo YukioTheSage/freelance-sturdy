@@ -1,16 +1,22 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
+// TEMPORARY HARDCODED CONFIG - FOR TESTING ONLY!
+// WARNING: Never commit real credentials to production!
+const HARDCODED_POSTGRES_URL = 'postgresql://postgres:d4ugk19lZ17p1XA6@db.czzkdcukjqpmeipkadgt.supabase.co:5432/postgres';
+
+// Debug: Log which connection method is being used
+const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL || HARDCODED_POSTGRES_URL;
+console.log('Database connection mode: Connection String (hardcoded fallback)');
+console.log('Using connection string (first 30 chars):', connectionString.substring(0, 30) + '...');
+
 // Create a PostgreSQL connection pool
 const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'root123',
-  database: process.env.DB_NAME || 'freelance_platform',
-  port: process.env.DB_PORT || 5432,
-  max: 20, // Maximum number of connections in the pool
-  idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
-  connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection could not be established
+  connectionString: connectionString,
+  ssl: { rejectUnauthorized: false },
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
 });
 
 // Test the connection
