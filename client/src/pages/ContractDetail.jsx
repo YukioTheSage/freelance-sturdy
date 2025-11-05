@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { contractsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useConfirm } from '../context/ConfirmContext';
+import Button from '../components/ui/Button';
+import SkeletonDetail from '../components/ui/SkeletonDetail';
 
 const ContractDetail = () => {
   const { id } = useParams();
   const [contract, setContract] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionLoading, setActionLoading] = useState({});
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { confirm } = useConfirm();
 
   useEffect(() => {
     fetchContract();
@@ -30,37 +36,53 @@ const ContractDetail = () => {
   };
 
   const handleCompleteContract = async () => {
-    if (!window.confirm('Are you sure you want to mark this contract as completed?')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Complete Contract',
+      message: 'Are you sure you want to mark this contract as completed?',
+      confirmText: 'Mark Complete',
+      variant: 'success'
+    });
 
+    if (!confirmed) return;
+
+    setActionLoading(prev => ({ ...prev, complete: true }));
     try {
       await contractsAPI.update(id, { status: 'completed', end_at: new Date().toISOString() });
-      alert('Contract marked as completed!');
+      toast.success('Contract marked as completed!');
       fetchContract();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update contract');
+      toast.error(err.response?.data?.message || 'Failed to update contract');
+    } finally {
+      setActionLoading(prev => ({ ...prev, complete: false }));
     }
   };
 
   const handleTerminateContract = async () => {
-    if (!window.confirm('Are you sure you want to terminate this contract? This action cannot be undone.')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Terminate Contract',
+      message: 'Are you sure you want to terminate this contract? This action cannot be undone.',
+      confirmText: 'Terminate',
+      variant: 'danger'
+    });
 
+    if (!confirmed) return;
+
+    setActionLoading(prev => ({ ...prev, terminate: true }));
     try {
       await contractsAPI.update(id, { status: 'terminated', end_at: new Date().toISOString() });
-      alert('Contract terminated');
+      toast.success('Contract terminated');
       fetchContract();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to terminate contract');
+      toast.error(err.response?.data?.message || 'Failed to terminate contract');
+    } finally {
+      setActionLoading(prev => ({ ...prev, terminate: false }));
     }
   };
 
   if (loading) {
     return (
       <div className="container">
-        <div className="loading">Loading contract...</div>
+        <SkeletonDetail />
       </div>
     );
   }
@@ -112,12 +134,20 @@ const ContractDetail = () => {
 
           {contract.status === 'active' && (
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button onClick={handleCompleteContract} className="btn btn-success">
+              <Button
+                onClick={handleCompleteContract}
+                variant="success"
+                loading={actionLoading.complete}
+              >
                 Mark Complete
-              </button>
-              <button onClick={handleTerminateContract} className="btn btn-danger">
+              </Button>
+              <Button
+                onClick={handleTerminateContract}
+                variant="danger"
+                loading={actionLoading.terminate}
+              >
                 Terminate
-              </button>
+              </Button>
             </div>
           )}
         </div>

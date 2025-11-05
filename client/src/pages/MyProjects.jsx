@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { projectsAPI, proposalsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useConfirm } from '../context/ConfirmContext';
+import Button from '../components/ui/Button';
+import Modal from '../components/ui/Modal';
+import SkeletonCard from '../components/ui/SkeletonCard';
 
 const MyProjects = () => {
   const [projects, setProjects] = useState([]);
@@ -10,8 +15,10 @@ const MyProjects = () => {
   const [selectedProject, setSelectedProject] = useState(null);
   const [proposals, setProposals] = useState([]);
   const [filterStatus, setFilterStatus] = useState('all');
+  const [actionLoading, setActionLoading] = useState({});
   const { user, isClient } = useAuth();
   const navigate = useNavigate();
+  const { confirm } = useConfirm();
 
   useEffect(() => {
     if (!isClient) {
@@ -53,72 +60,111 @@ const MyProjects = () => {
   };
 
   const handleAcceptProposal = async (proposalId) => {
-    if (!window.confirm('Are you sure you want to accept this proposal? This will reject all other proposals, mark the project as awarded, and create a contract.')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Accept Proposal',
+      message: 'Are you sure you want to accept this proposal? This will reject all other proposals, mark the project as awarded, and create a contract.',
+      confirmText: 'Accept',
+      variant: 'success'
+    });
 
+    if (!confirmed) return;
+
+    setActionLoading(prev => ({ ...prev, [proposalId]: true }));
     try {
       const response = await proposalsAPI.accept(proposalId);
       const { contract } = response.data.data;
-      
-      alert(`Proposal accepted successfully!\n\nA contract has been created and is now active.\nContract ID: ${contract.id}`);
-      
+
+      toast.success('Proposal accepted successfully! Contract has been created.');
+
       fetchProposals(selectedProject.id);
       fetchProjects();
-      
-      // Optionally navigate to the contract
-      if (window.confirm('Would you like to view the contract now?')) {
+
+      // Ask if they want to view the contract
+      const viewContract = await confirm({
+        title: 'View Contract',
+        message: 'Would you like to view the contract now?',
+        confirmText: 'View Contract',
+        variant: 'primary'
+      });
+
+      if (viewContract) {
         navigate(`/contracts/${contract.id}`);
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to accept proposal');
+      toast.error(err.response?.data?.message || 'Failed to accept proposal');
       console.error(err);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [proposalId]: false }));
     }
   };
 
   const handleRejectProposal = async (proposalId) => {
-    if (!window.confirm('Are you sure you want to reject this proposal?')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Reject Proposal',
+      message: 'Are you sure you want to reject this proposal?',
+      confirmText: 'Reject',
+      variant: 'danger'
+    });
 
+    if (!confirmed) return;
+
+    setActionLoading(prev => ({ ...prev, [`reject-${proposalId}`]: true }));
     try {
       await proposalsAPI.reject(proposalId);
-      alert('Proposal rejected successfully!');
+      toast.success('Proposal rejected successfully!');
       fetchProposals(selectedProject.id);
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to reject proposal');
+      toast.error(err.response?.data?.message || 'Failed to reject proposal');
       console.error(err);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [`reject-${proposalId}`]: false }));
     }
   };
 
   const handleShortlistProposal = async (proposalId) => {
+    setActionLoading(prev => ({ ...prev, [`shortlist-${proposalId}`]: true }));
     try {
       await proposalsAPI.update(proposalId, { status: 'shortlisted' });
+      toast.success('Proposal shortlisted!');
       fetchProposals(selectedProject.id);
     } catch (err) {
-      alert('Failed to shortlist proposal');
+      toast.error('Failed to shortlist proposal');
       console.error(err);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [`shortlist-${proposalId}`]: false }));
     }
   };
 
   const handleDeleteProject = async (projectId) => {
-    if (!window.confirm('Are you sure you want to delete this project?')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Delete Project',
+      message: 'Are you sure you want to delete this project? This action cannot be undone.',
+      confirmText: 'Delete',
+      variant: 'danger'
+    });
 
+    if (!confirmed) return;
+
+    setActionLoading(prev => ({ ...prev, [`delete-${projectId}`]: true }));
     try {
       await projectsAPI.delete(projectId);
       setProjects(projects.filter((p) => p.id !== projectId));
+      toast.success('Project deleted successfully!');
     } catch (err) {
-      alert('Failed to delete project');
+      toast.error('Failed to delete project');
       console.error(err);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [`delete-${projectId}`]: false }));
     }
   };
 
   if (loading) {
     return (
       <div className="container">
-        <div className="loading">Loading projects...</div>
+        <h1 style={{ marginBottom: '1.5rem' }}>My Projects</h1>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <SkeletonCard count={3} />
+        </div>
       </div>
     );
   }
@@ -166,16 +212,20 @@ const MyProjects = () => {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <button onClick={() => handleViewProposals(project)} className="btn btn-primary">
+                  <Button onClick={() => handleViewProposals(project)} variant="primary">
                     View Proposals ({project.proposal_count})
-                  </button>
-                  <button onClick={() => navigate(`/projects/${project.id}`)} className="btn btn-secondary">
+                  </Button>
+                  <Button onClick={() => navigate(`/projects/${project.id}`)} variant="secondary">
                     View Details
-                  </button>
+                  </Button>
                   {project.status === 'open' && (
-                    <button onClick={() => handleDeleteProject(project.id)} className="btn btn-danger">
+                    <Button
+                      onClick={() => handleDeleteProject(project.id)}
+                      variant="danger"
+                      loading={actionLoading[`delete-${project.id}`]}
+                    >
                       Delete
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>
@@ -184,41 +234,14 @@ const MyProjects = () => {
         </div>
       )}
 
-      {selectedProject && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1rem',
-            zIndex: 1000,
-          }}
-          onClick={() => setSelectedProject(null)}
-        >
-          <div
-            style={{
-              backgroundColor: 'white',
-              borderRadius: '8px',
-              padding: '2rem',
-              maxWidth: '800px',
-              width: '100%',
-              maxHeight: '80vh',
-              overflow: 'auto',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h2>Proposals for "{selectedProject.title}"</h2>
-              <button onClick={() => setSelectedProject(null)} className="btn btn-secondary">
-                Close
-              </button>
-            </div>
+      <Modal
+        isOpen={!!selectedProject}
+        onClose={() => setSelectedProject(null)}
+        title={selectedProject ? `Proposals for "${selectedProject.title}"` : ''}
+        maxWidth="800px"
+      >
+        {selectedProject && (
+          <div>
 
             <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               <button 
@@ -313,28 +336,31 @@ const MyProjects = () => {
 
                       {(proposal.status === 'submitted' || proposal.status === 'shortlisted') && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: '120px' }}>
-                          <button 
-                            onClick={() => handleAcceptProposal(proposal.id)} 
-                            className="btn btn-success"
+                          <Button
+                            onClick={() => handleAcceptProposal(proposal.id)}
+                            variant="success"
+                            loading={actionLoading[proposal.id]}
                             style={{ fontSize: '0.9rem', padding: '0.5rem 1rem' }}
                           >
                             ✓ Accept
-                          </button>
-                          <button 
-                            onClick={() => handleRejectProposal(proposal.id)} 
-                            className="btn btn-danger"
+                          </Button>
+                          <Button
+                            onClick={() => handleRejectProposal(proposal.id)}
+                            variant="danger"
+                            loading={actionLoading[`reject-${proposal.id}`]}
                             style={{ fontSize: '0.9rem', padding: '0.5rem 1rem' }}
                           >
                             ✗ Reject
-                          </button>
+                          </Button>
                           {proposal.status === 'submitted' && (
-                            <button 
-                              onClick={() => handleShortlistProposal(proposal.id)} 
-                              className="btn btn-secondary"
+                            <Button
+                              onClick={() => handleShortlistProposal(proposal.id)}
+                              variant="secondary"
+                              loading={actionLoading[`shortlist-${proposal.id}`]}
                               style={{ fontSize: '0.9rem', padding: '0.5rem 1rem' }}
                             >
                               ⭐ Shortlist
-                            </button>
+                            </Button>
                           )}
                         </div>
                       )}
@@ -368,8 +394,8 @@ const MyProjects = () => {
               </div>
             )}
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   );
 };

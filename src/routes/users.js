@@ -99,16 +99,12 @@ router.post('/', authenticate, authorize('admin'), async (req, res, next) => {
 
     // Use transaction to create user and profile
     const result = await transaction(async (connection) => {
-      // Insert user
-      await connection.query(
-        `INSERT INTO users (email, password_hash, role, first_name, last_name, phone, country)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [email, password, role, first_name, last_name, phone, country]
-      );
-
-      // Get the inserted user
+      // Insert user and return the inserted row
       const userResult = await connection.query(
-        'SELECT id, email, role, first_name, last_name, phone, country, is_verified, created_at FROM users WHERE id = LAST_INSERT_ID()'
+        `INSERT INTO users (email, password_hash, role, first_name, last_name, phone, country)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         RETURNING id, email, role, first_name, last_name, phone, country, is_verified, created_at`,
+        [email, password, role, first_name, last_name, phone, country]
       );
       const user = userResult.rows[0];
 

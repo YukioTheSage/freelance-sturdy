@@ -1,47 +1,39 @@
-const mysql = require('mysql2');
+const { Pool } = require('pg');
 require('dotenv').config();
 
-// Create a MySQL connection pool
-const pool = mysql.createPool({
+// Create a PostgreSQL connection pool
+const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
+  user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || 'root123',
   database: process.env.DB_NAME || 'freelance_platform',
-  port: process.env.DB_PORT || 3306,
-  waitForConnections: true,
-  connectionLimit: 20, // Maximum number of connections in the pool
-  queueLimit: 0,
-  enableKeepAlive: true,
-  keepAliveInitialDelay: 0
+  port: process.env.DB_PORT || 5432,
+  max: 20, // Maximum number of connections in the pool
+  idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
+  connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection could not be established
 });
 
-// Get promise-based pool
-const promisePool = pool.promise();
-
 // Test the connection
-pool.getConnection((err, connection) => {
+pool.connect((err, client, release) => {
   if (err) {
-    console.error('Error connecting to MySQL database:', err);
+    console.error('Error connecting to PostgreSQL database:', err);
     process.exit(-1);
   }
-  if (connection) {
-    console.log('Connected to MySQL database');
-    connection.release();
+  if (client) {
+    console.log('Connected to PostgreSQL database');
+    release();
   }
 });
 
 // Handle pool errors
 pool.on('error', (err) => {
-  console.error('Unexpected error on MySQL pool', err);
-  if (err.code === 'PROTOCOL_CONNECTION_LOST') {
-    console.error('Database connection was closed.');
-  }
-  if (err.code === 'ER_CON_COUNT_ERROR') {
-    console.error('Database has too many connections.');
-  }
+  console.error('Unexpected error on PostgreSQL pool', err);
   if (err.code === 'ECONNREFUSED') {
     console.error('Database connection was refused.');
   }
+  if (err.code === '53300') {
+    console.error('Database has too many connections.');
+  }
 });
 
-module.exports = promisePool;
+module.exports = pool;

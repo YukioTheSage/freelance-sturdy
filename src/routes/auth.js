@@ -58,12 +58,10 @@ const saveRefreshToken = async (userId, token) => {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
 
-  // Convert to MySQL DATETIME format (YYYY-MM-DD HH:MM:SS)
-  const formattedExpiresAt = expiresAt.toISOString().slice(0, 19).replace('T', ' ');
-
+  // PostgreSQL accepts ISO format directly
   await query(
     'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
-    [userId, token, formattedExpiresAt]
+    [userId, token, expiresAt.toISOString()]
   );
 };
 
@@ -129,7 +127,7 @@ router.post(
       // Create user with profile in transaction
       const result = await transaction(async (connection) => {
         // Generate UUID for the new user
-        const uuidResult = await connection.query('SELECT UUID() as id');
+        const uuidResult = await connection.query('SELECT gen_random_uuid() as id');
         const userId = uuidResult.rows[0].id;
 
         // Insert user with the generated UUID

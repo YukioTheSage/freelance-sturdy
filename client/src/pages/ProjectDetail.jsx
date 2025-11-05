@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { projectsAPI, proposalsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import SkeletonDetail from '../components/ui/SkeletonDetail';
+import Button from '../components/ui/Button';
 
 const ProjectDetail = () => {
   const { id } = useParams();
@@ -61,6 +64,7 @@ const ProjectDetail = () => {
       };
 
       await proposalsAPI.create(data);
+      toast.success('Proposal submitted successfully!');
       setSuccess('Proposal submitted successfully!');
       setShowProposalForm(false);
       setProposalData({
@@ -81,7 +85,7 @@ const ProjectDetail = () => {
   if (loading) {
     return (
       <div className="container">
-        <div className="loading">Loading project...</div>
+        <SkeletonDetail />
       </div>
     );
   }

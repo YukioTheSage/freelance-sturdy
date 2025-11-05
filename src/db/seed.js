@@ -26,17 +26,18 @@ const insertMany = async (connection, sql, rows) => {
 };
 
 const seed = async () => {
-  const connection = await pool.getConnection();
+  const connection = await pool.connect();
 
   try {
     console.log('Resetting existing data...');
-    await connection.query('SET FOREIGN_KEY_CHECKS = 0');
+    // PostgreSQL: Disable foreign key checks temporarily
+    await connection.query('SET session_replication_role = replica');
     for (const table of TABLES) {
-      await connection.query(`TRUNCATE TABLE ${table}`);
+      await connection.query(`TRUNCATE TABLE ${table} RESTART IDENTITY CASCADE`);
     }
-    await connection.query('SET FOREIGN_KEY_CHECKS = 1');
+    await connection.query('SET session_replication_role = DEFAULT');
 
-    await connection.beginTransaction();
+    await connection.query('BEGIN');
 
     const userIds = {
       janeClient: randomUUID(),
@@ -655,10 +656,10 @@ const seed = async () => {
       messages
     );
 
-    await connection.commit();
+    await connection.query('COMMIT');
     console.log('Database seeded successfully.');
   } catch (error) {
-    await connection.rollback().catch(() => {});
+    await connection.query('ROLLBACK').catch(() => {});
     console.error('Failed to seed database:', error);
     process.exitCode = 1;
   } finally {

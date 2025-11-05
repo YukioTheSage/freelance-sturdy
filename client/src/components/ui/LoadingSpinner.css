@@ -1,0 +1,9 @@
+.loading-spinner {
+  display: inline-block;
+  position: relative;
+}
+
+.loading-spinner svg {
+  width: 100%;
+  height: 100%;
+}

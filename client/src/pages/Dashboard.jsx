@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { projectsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import SkeletonCard from '../components/ui/SkeletonCard';
 
 const Dashboard = () => {
   const [projects, setProjects] = useState([]);
@@ -54,7 +55,26 @@ const Dashboard = () => {
   if (loading) {
     return (
       <div className="container">
-        <div className="loading">Loading projects...</div>
+        <h1 style={{ marginBottom: '1.5rem' }}>Browse Projects</h1>
+        <div className="filters">
+          <div className="filters-row">
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Status</label>
+              <select disabled>
+                <option>All Statuses</option>
+              </select>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Project Type</label>
+              <select disabled>
+                <option>All Types</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div className="projects-grid">
+          <SkeletonCard count={6} />
+        </div>
       </div>
     );
   }

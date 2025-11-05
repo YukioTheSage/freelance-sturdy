@@ -1,25 +1,24 @@
 version: '3.8'
 
 services:
-  # MySQL Database
-  mysql:
-    image: mysql:8.0
-    container_name: freelance_mysql
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16
+    container_name: freelance_postgres
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root123}
-      MYSQL_DATABASE: ${DB_NAME:-freelance_platform}
-      MYSQL_USER: ${DB_USER:-freelance_user}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-root123}
+      POSTGRES_USER: ${DB_USER:-freelance_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-root123}
+      POSTGRES_DB: ${DB_NAME:-freelance_platform}
     ports:
-      - "${DB_PORT:-3306}:3306"
+      - "${DB_PORT:-5432}:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
       - ./src/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
     networks:
       - freelance_network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-root123}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-freelance_user}"]
       timeout: 20s
       retries: 10
 
@@ -34,17 +33,17 @@ services:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: ${PORT:-3000}
       DB_USER: ${DB_USER:-freelance_user}
-      DB_HOST: mysql
+      DB_HOST: postgres
       DB_NAME: ${DB_NAME:-freelance_platform}
       DB_PASSWORD: ${DB_PASSWORD:-root123}
-      DB_PORT: 3306
+      DB_PORT: 5432
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
       CLIENT_URL: ${CLIENT_URL:-http://localhost:5173}
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
     networks:
       - freelance_network
@@ -74,7 +73,7 @@ services:
     command: npm run dev -- --host 0.0.0.0 --port 5173
 
 volumes:
-  mysql_data:
+  postgres_data:
     driver: local
 
 networks:

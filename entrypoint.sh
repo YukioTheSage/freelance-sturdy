@@ -1,10 +1,10 @@
 #!/bin/bash
-# Wait for MySQL to be ready
-echo "Waiting for MySQL to be ready..."
-while ! nc -z mysql 3306; do
+# Wait for PostgreSQL to be ready
+echo "Waiting for PostgreSQL to be ready..."
+while ! nc -z postgres 5432; do
   sleep 1
 done
-echo "MySQL is ready!"
+echo "PostgreSQL is ready!"
 
 # Initialize database and seed data
 echo "Initializing database..."

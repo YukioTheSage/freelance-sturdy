@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { contractsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useConfirm } from '../context/ConfirmContext';
+import Button from '../components/ui/Button';
+import SkeletonCard from '../components/ui/SkeletonCard';
 
 const MyContracts = () => {
   const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [actionLoading, setActionLoading] = useState({});
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { confirm } = useConfirm();
 
   useEffect(() => {
     fetchContracts();
@@ -38,6 +44,29 @@ const MyContracts = () => {
     return styles[status] || {};
   };
 
+  const handleMarkComplete = async (contractId) => {
+    const confirmed = await confirm({
+      title: 'Mark Contract Complete',
+      message: 'Are you sure you want to mark this contract as completed?',
+      confirmText: 'Mark Complete',
+      variant: 'success'
+    });
+
+    if (!confirmed) return;
+
+    setActionLoading(prev => ({ ...prev, [contractId]: true }));
+    try {
+      await contractsAPI.update(contractId, { status: 'completed' });
+      toast.success('Contract marked as completed!');
+      fetchContracts();
+    } catch (err) {
+      toast.error('Failed to update contract');
+      console.error(err);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [contractId]: false }));
+    }
+  };
+
   const filteredContracts = contracts.filter(
     (contract) => filterStatus === 'all' || contract.status === filterStatus
   );
@@ -45,7 +74,10 @@ const MyContracts = () => {
   if (loading) {
     return (
       <div className="container">
-        <div className="loading">Loading contracts...</div>
+        <h1 style={{ marginBottom: '1.5rem' }}>My Contracts</h1>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <SkeletonCard count={3} />
+        </div>
       </div>
     );
   }
@@ -162,26 +194,21 @@ const MyContracts = () => {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <button
+                  <Button
                     onClick={() => navigate(`/contracts/${contract.id}`)}
-                    className="btn btn-primary"
+                    variant="primary"
                   >
                     View Details
-                  </button>
+                  </Button>
                   {contract.status === 'active' && (
-                    <button
-                      onClick={() => {
-                        if (window.confirm('Mark this contract as completed?')) {
-                          contractsAPI.update(contract.id, { status: 'completed' })
-                            .then(() => fetchContracts())
-                            .catch(err => alert('Failed to update contract'));
-                        }
-                      }}
-                      className="btn btn-success"
+                    <Button
+                      onClick={() => handleMarkComplete(contract.id)}
+                      variant="success"
+                      loading={actionLoading[contract.id]}
                       style={{ fontSize: '0.875rem' }}
                     >
                       Mark Complete
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>

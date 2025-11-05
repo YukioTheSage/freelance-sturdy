@@ -5,84 +5,84 @@
 
 const fs = require('fs');
 const path = require('path');
-const mysql = require('mysql2');
+const { Client } = require('pg');
 require('dotenv').config();
 
 const initDb = async () => {
-  // Create connection without database selected
-  const connection = mysql.createConnection({
+  const dbName = process.env.DB_NAME || 'freelance_platform';
+
+  // First, connect to default 'postgres' database to create our database
+  const defaultClient = new Client({
     host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
+    user: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD || 'root123',
-    port: process.env.DB_PORT || 3306
+    port: process.env.DB_PORT || 5432,
+    database: 'postgres' // Connect to default postgres database
   });
 
-  return new Promise((resolve, reject) => {
-    connection.connect((err) => {
-      if (err) {
-        reject(err);
-        return;
+  try {
+    await defaultClient.connect();
+    console.log('Connected to PostgreSQL server');
+
+    // Create database if it doesn't exist
+    try {
+      await defaultClient.query(`CREATE DATABASE ${dbName}`);
+      console.log(`✅ Database '${dbName}' created`);
+    } catch (err) {
+      if (err.code === '42P04') { // database_already_exists
+        console.log(`⚠️  Database '${dbName}' already exists, continuing...`);
+      } else {
+        throw err;
       }
+    }
 
-      const dbName = process.env.DB_NAME || 'freelance_platform';
+    await defaultClient.end();
 
-      // Create database if it doesn't exist
-      connection.query(`CREATE DATABASE IF NOT EXISTS ${dbName}`, (err) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-
-        // Select the database
-        connection.query(`USE ${dbName}`, (err) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-
-          // Read schema.sql
-          const schemaPath = path.join(__dirname, 'schema.sql');
-          const schema = fs.readFileSync(schemaPath, 'utf8');
-
-          // Split SQL statements by semicolon and filter out empty/comment lines
-          const statements = schema
-            .split(';')
-            .map((stmt) => stmt.trim())
-            .filter((stmt) => stmt && !stmt.startsWith('--'));
-
-          let completed = 0;
-
-          const executeNext = () => {
-            if (completed >= statements.length) {
-              console.log('✅ Database schema initialized successfully!');
-              connection.end();
-              resolve();
-              return;
-            }
-
-            const stmt = statements[completed] + ';';
-            console.log(`Executing statement ${completed + 1}/${statements.length}...`);
-
-            connection.query(stmt, (err) => {
-              if (err) {
-                // Ignore "table already exists" errors (1050) and duplicate key errors (1061)
-                if (err.code === 'ER_TABLE_EXISTS_ERROR' || err.code === 'ER_DUP_KEYNAME') {
-                  console.log(`⚠️  Skipping (${err.code})`);
-                } else {
-                  reject(err);
-                  return;
-                }
-              }
-              completed++;
-              executeNext();
-            });
-          };
-
-          executeNext();
-        });
-      });
+    // Now connect to our newly created database
+    const client = new Client({
+      host: process.env.DB_HOST || 'localhost',
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD || 'root123',
+      port: process.env.DB_PORT || 5432,
+      database: dbName
     });
-  });
+
+    await client.connect();
+    console.log(`Connected to database '${dbName}'`);
+
+    // Read schema.sql
+    const schemaPath = path.join(__dirname, 'schema.sql');
+    const schema = fs.readFileSync(schemaPath, 'utf8');
+
+    // Split SQL statements by semicolon and filter out empty/comment lines
+    const statements = schema
+      .split(';')
+      .map((stmt) => stmt.trim())
+      .filter((stmt) => stmt && !stmt.startsWith('--'));
+
+    // Execute each statement
+    for (let i = 0; i < statements.length; i++) {
+      const stmt = statements[i] + ';';
+      console.log(`Executing statement ${i + 1}/${statements.length}...`);
+
+      try {
+        await client.query(stmt);
+      } catch (err) {
+        // Ignore "table already exists" (42P07) and duplicate object (42710) errors
+        if (err.code === '42P07' || err.code === '42710') {
+          console.log(`⚠️  Skipping (${err.code}): ${err.message}`);
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    console.log('✅ Database schema initialized successfully!');
+    await client.end();
+  } catch (error) {
+    console.error('Error during database initialization:', error);
+    throw error;
+  }
 };
 
 initDb()

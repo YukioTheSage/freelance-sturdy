@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { proposalsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useConfirm } from '../context/ConfirmContext';
+import Button from '../components/ui/Button';
+import SkeletonCard from '../components/ui/SkeletonCard';
 
 const MyProposals = () => {
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionLoading, setActionLoading] = useState({});
   const { user, isFreelancer } = useAuth();
   const navigate = useNavigate();
+  const { confirm } = useConfirm();
 
   useEffect(() => {
     if (!isFreelancer) {
@@ -35,23 +41,35 @@ const MyProposals = () => {
   };
 
   const handleWithdraw = async (proposalId) => {
-    if (!window.confirm('Are you sure you want to withdraw this proposal?')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Withdraw Proposal',
+      message: 'Are you sure you want to withdraw this proposal? This action cannot be undone.',
+      confirmText: 'Withdraw',
+      variant: 'danger'
+    });
 
+    if (!confirmed) return;
+
+    setActionLoading(prev => ({ ...prev, [proposalId]: true }));
     try {
       await proposalsAPI.delete(proposalId);
       setProposals(proposals.filter((p) => p.id !== proposalId));
+      toast.success('Proposal withdrawn successfully!');
     } catch (err) {
-      alert('Failed to withdraw proposal');
+      toast.error('Failed to withdraw proposal');
       console.error(err);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [proposalId]: false }));
     }
   };
 
   if (loading) {
     return (
       <div className="container">
-        <div className="loading">Loading proposals...</div>
+        <h1 style={{ marginBottom: '1.5rem' }}>My Proposals</h1>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <SkeletonCard count={3} />
+        </div>
       </div>
     );
   }
@@ -120,9 +138,13 @@ const MyProposals = () => {
                 </div>
 
                 {proposal.status === 'pending' && (
-                  <button onClick={() => handleWithdraw(proposal.id)} className="btn btn-danger">
+                  <Button
+                    onClick={() => handleWithdraw(proposal.id)}
+                    variant="danger"
+                    loading={actionLoading[proposal.id]}
+                  >
                     Withdraw
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>

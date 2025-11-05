@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A full-stack freelancing platform with Node.js/Express RESTful API backend, MySQL database, and React frontend. The backend exclusively uses raw SQL queries via the `mysql2` library - no ORM is used.
+A full-stack freelancing platform with Node.js/Express RESTful API backend, PostgreSQL database, and React frontend. The backend exclusively uses raw SQL queries via the `pg` library - no ORM is used.
 
 **Key Features:**
 - JWT authentication with refresh tokens
@@ -17,11 +17,11 @@ A full-stack freelancing platform with Node.js/Express RESTful API backend, MySQ
 
 ### Development with Docker (Recommended)
 ```bash
-# Start all services (MySQL + Node.js app)
+# Start all services (PostgreSQL + Node.js app)
 docker-compose up
 
-# Start only MySQL (run app locally)
-docker-compose up mysql
+# Start only PostgreSQL (run app locally)
+docker-compose up postgres
 
 # Stop services
 docker-compose down
@@ -54,29 +54,29 @@ npm run build            # Build for production
 
 **Option 1: Using Docker (Recommended)**
 ```bash
-# Start MySQL container (automatically runs schema and seed files)
-docker-compose up mysql
+# Start PostgreSQL container (automatically runs schema and seed files)
+docker-compose up postgres
 
 # The schema and seed files are automatically loaded on first run
 ```
 
-**Option 2: Manual MySQL Setup**
+**Option 2: Manual PostgreSQL Setup**
 ```bash
-# Create database
-mysql -u root -p -e "CREATE DATABASE freelance_platform"
+# Create database (using psql)
+psql -U postgres -c "CREATE DATABASE freelance_platform"
 
 # Run schema (creates tables)
-mysql -u root -p freelance_platform < src/db/schema.sql
+psql -U postgres freelance_platform < src/db/schema.sql
 
 # Seed data (optional)
-mysql -u root -p freelance_platform < src/db/seed.sql
+psql -U postgres freelance_platform < src/db/seed.sql
 ```
 
 ### Environment Configuration
 
 **Backend (.env):**
 Copy `.env.example` to `.env` and configure:
-- Database credentials (use `DB_HOST=mysql` for Docker, `localhost` for local)
+- Database credentials (use `DB_HOST=postgres` for Docker, `localhost` for local)
 - JWT secrets (generate with: `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`)
 - JWT token expiration times
 - Client URL for CORS
@@ -201,12 +201,13 @@ router.get('/:id', async (req, res, next) => {
 
 ### Error Handling
 
-Global error handler in [src/middleware/errorHandler.js](src/middleware/errorHandler.js) handles MySQL errors:
-- `ER_DUP_ENTRY` - Unique constraint violation (409 Conflict)
-- `ER_NO_REFERENCED_ROW_2` / `ER_ROW_IS_REFERENCED_2` - Foreign key violation (400 Bad Request)
-- `ER_BAD_NULL_ERROR` - NOT NULL violation (400 Bad Request)
-- `ER_TRUNCATED_WRONG_VALUE` - Invalid data format (400 Bad Request)
-- `ER_DATA_TOO_LONG` - Data too long (400 Bad Request)
+Global error handler in [src/middleware/errorHandler.js](src/middleware/errorHandler.js) handles PostgreSQL errors:
+- `23505` - Unique constraint violation (409 Conflict)
+- `23503` - Foreign key violation (400 Bad Request)
+- `23502` - NOT NULL violation (400 Bad Request)
+- `22P02` / `22007` - Invalid data format (400 Bad Request)
+- `22001` - Data too long (400 Bad Request)
+- `23514` - Check constraint violation (400 Bad Request)
 
 Always use `next(error)` in route handlers to trigger this middleware.
 
@@ -214,13 +215,14 @@ Always use `next(error)` in route handlers to trigger this middleware.
 
 Located in [src/db/schema.sql](src/db/schema.sql):
 
-- **UUIDs**: All IDs are CHAR(36) UUIDs generated via `UUID()` function
+- **UUIDs**: All IDs are UUID type generated via `gen_random_uuid()` function
 - **Role-based profiles**: Users have a `role` field ('freelancer', 'client', 'admin'), with separate `freelancer_profiles` and `client_profiles` tables
 - **Authentication tables**: `users` stores password_hash; `refresh_tokens` tracks active refresh tokens with revocation support
 - **Cascading deletes**: Most foreign keys use `ON DELETE CASCADE`
-- **JSON fields**: Used for flexible data like `availability` in freelancer profiles
+- **JSONB fields**: Used for flexible data like `availability` in freelancer profiles
 - **Junction tables**: Many-to-many relationships use junction tables (e.g., `freelancer_skills`, `project_skills`)
-- **MySQL 8.0+**: Requires MySQL 8.0 or higher for CHECK constraints and improved UUID support
+- **PostgreSQL 13+**: Requires PostgreSQL 13 or higher for built-in `gen_random_uuid()` support
+- **Auto-update timestamps**: Uses triggers to automatically update `updated_at` columns
 
 ### Creating New Routes
 
@@ -317,10 +319,12 @@ React application located in [client/](client/) directory:
 ## Adding New Database Tables
 
 1. Add CREATE TABLE statement to [src/db/schema.sql](src/db/schema.sql)
-2. Use UUID primary keys: `id CHAR(36) PRIMARY KEY DEFAULT (UUID())`
+2. Use UUID primary keys: `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`
 3. Add foreign key constraints with `ON DELETE CASCADE` or `ON DELETE SET NULL` as appropriate
-4. Add CHECK constraints for enum-like columns (requires MySQL 8.0+)
-5. Add ENGINE=InnoDB and charset: `ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
-6. Re-run schema file to recreate database:
-   - Docker: `docker-compose down -v && docker-compose up mysql`
-   - Manual: `mysql -u root -p freelance_platform < src/db/schema.sql`
+4. Add CHECK constraints for enum-like columns
+5. Use `TIMESTAMPTZ` for timestamp columns instead of `DATETIME`
+6. Use `JSONB` instead of `JSON` for better performance
+7. If the table has an `updated_at` column, create a trigger using the `update_updated_at_column()` function
+8. Re-run schema file to recreate database:
+   - Docker: `docker-compose down -v && docker-compose up postgres`
+   - Manual: `psql -U postgres freelance_platform < src/db/schema.sql`
