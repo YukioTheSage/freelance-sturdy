@@ -3,8 +3,7 @@ require('dotenv').config();
 
 // TEMPORARY HARDCODED CONFIG - FOR TESTING ONLY!
 // WARNING: Never commit real credentials to production!
-const HARDCODED_POSTGRES_URL = 'postgresql://postgres:d4ugk19lZ17p1XA6@db.czzkdcukjqpmeipkadgt.supabase.co:5432/postgres';
-
+const HARDCODED_POSTGRES_URL = 'postgresql://postgres.czzkdcukjqpmeipkadgt:d4ugk19lZ17p1XA6@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres';
 // Debug: Log which connection method is being used
 const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL || HARDCODED_POSTGRES_URL;
 console.log('Database connection mode: Connection String (hardcoded fallback)');
