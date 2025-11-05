@@ -1,0 +1,82 @@
+name: freelance-platform
+region: nyc
+
+# PostgreSQL Database
+databases:
+  - name: freelance-platform-db
+    engine: PG
+    production: true
+    version: "15"
+
+# Backend API Service
+services:
+  - name: api
+    github:
+      repo: your-username/your-repo-name
+      branch: main
+      deploy_on_push: true
+    source_dir: /
+    build_command: npm install
+    run_command: npm start
+    environment_slug: node-js
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    http_port: 3000
+    routes:
+      - path: /api
+      - path: /health
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: JWT_SECRET
+        value: ${JWT_SECRET}
+        type: SECRET
+      - key: JWT_REFRESH_SECRET
+        value: ${JWT_REFRESH_SECRET}
+        type: SECRET
+      - key: JWT_EXPIRES_IN
+        value: "15m"
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: "7d"
+      - key: CLIENT_URL
+        value: ${APP_URL}
+      - key: DATABASE_URL
+        value: ${freelance-platform-db.DATABASE_URL}
+      - key: DB_HOST
+        value: ${freelance-platform-db.HOSTNAME}
+      - key: DB_PORT
+        value: ${freelance-platform-db.PORT}
+      - key: DB_NAME
+        value: ${freelance-platform-db.DATABASE}
+      - key: DB_USER
+        value: ${freelance-platform-db.USERNAME}
+      - key: DB_PASSWORD
+        value: ${freelance-platform-db.PASSWORD}
+
+# Frontend Static Site
+static_sites:
+  - name: web
+    github:
+      repo: your-username/your-repo-name
+      branch: main
+      deploy_on_push: true
+    source_dir: /client
+    build_command: npm install && npm run build
+    output_dir: dist
+    routes:
+      - path: /
+    envs:
+      - key: VITE_API_URL
+        value: ${api.PUBLIC_URL}/api
+
+# Health checks
+health_checks:
+  api:
+    http_path: /health
+    initial_delay_seconds: 30
+    period_seconds: 10
+    timeout_seconds: 5
+    success_threshold: 1
+    failure_threshold: 3
