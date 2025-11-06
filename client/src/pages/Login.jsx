@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api';
@@ -10,8 +10,17 @@ const Login = () => {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const [shouldNavigate, setShouldNavigate] = useState(false);
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  // Navigate after authentication state is updated
+  useEffect(() => {
+    if (shouldNavigate && isAuthenticated) {
+      console.log('Login: Navigation triggered - redirecting to dashboard');
+      navigate('/', { replace: true });
+    }
+  }, [shouldNavigate, isAuthenticated, navigate]);
 
   const handleChange = (e) => {
     setFormData({
@@ -44,8 +53,8 @@ const Login = () => {
       // Store tokens and user data
       login(user, accessToken, refreshToken);
 
-      // Redirect to dashboard
-      navigate('/');
+      // Trigger navigation via useEffect after state updates
+      setShouldNavigate(true);
     } catch (err) {
       console.error('Login error:', err);
       setError(

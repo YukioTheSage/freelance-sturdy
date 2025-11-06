@@ -17,7 +17,8 @@ import ContractDetail from './pages/ContractDetail';
 
 // Protected Route wrapper
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  console.log('ProtectedRoute: isAuthenticated =', isAuthenticated, 'user =', user);
   return isAuthenticated ? children : <Navigate to="/login" />;
 };
 

@@ -9,7 +9,7 @@ console.log('🔧 Using hardcoded database credentials (TEMP ONLY!)');
 // Using individual params instead of connection string to force IPv4
 const pool = new Pool({
   host: 'aws-1-ap-southeast-2.pooler.supabase.com',
-  port: 6543, // Transaction pooling port
+  port: 5432, // Session pooling port - better for complex operations
   database: 'postgres',
   user: 'postgres.czzkdcukjqpmeipkadgt',
   password: 'd4ugk19lZ17p1XA6',
@@ -36,11 +36,15 @@ pool.connect((err, client, release) => {
 // Handle pool errors
 pool.on('error', (err) => {
   console.error('Unexpected error on PostgreSQL pool', err);
+
+  // Check for common Supabase errors
   if (err.code === 'ECONNREFUSED') {
-    console.error('Database connection was refused.');
-  }
-  if (err.code === '53300') {
-    console.error('Database has too many connections.');
+    console.error('❌ Database connection was refused.');
+  } else if (err.code === '53300') {
+    console.error('❌ Database has too many connections.');
+  } else if (err.code === 'XX000' || err.message?.includes('shutdown') || err.message?.includes('terminate_received')) {
+    console.error('❌ Database connection terminated - Your Supabase database may be paused!');
+    console.error('💡 Solution: Go to https://supabase.com dashboard and resume your database.');
   }
 });
 

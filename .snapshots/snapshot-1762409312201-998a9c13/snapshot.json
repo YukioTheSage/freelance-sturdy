@@ -1,0 +1,373 @@
+{
+  "id": "snapshot-1762409312201-998a9c13",
+  "timestamp": 1762409312201,
+  "description": "",
+  "gitBranch": "main",
+  "gitCommitHash": "195f197029df664ac87eac6369e39402cf149e7a",
+  "tags": [],
+  "notes": "",
+  "taskReference": "",
+  "isFavorite": false,
+  "isSelective": false,
+  "selectedFiles": [],
+  "files": {
+    ".env.production.example": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    ".nodemon.json": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    ".gitignore": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    ".env.example": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    ".dockerignore": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "vercel.json": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "package.json": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    ".do\\app.yaml": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "scripts\\make-executable.sh": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "scripts\\maintenance.sh": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "src\\server.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    ".github\\workflows\\deploy.yml": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "scripts\\logs.sh": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "scripts\\restore.sh": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "scripts\\update.sh": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "scripts\\setup.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "scripts\\README.md": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "scripts\\health-check.sh": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "src\\routes\\auth.js": {
+      "diff": "Index: src\\routes\\auth.js\n===================================================================\n--- src\\routes\\auth.js\n+++ src\\routes\\auth.js\n@@ -54,16 +54,25 @@\n /**\r\n  * Helper function to save refresh token to database\r\n  */\r\n const saveRefreshToken = async (userId, token) => {\r\n+  console.log('   📝 saveRefreshToken called with userId:', userId);\r\n   const expiresAt = new Date();\r\n   expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now\r\n \r\n-  // PostgreSQL accepts ISO format directly\r\n-  await query(\r\n-    'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',\r\n-    [userId, token, expiresAt.toISOString()]\r\n-  );\r\n+  try {\r\n+    console.log('   🔄 Executing INSERT for refresh_tokens...');\r\n+    // PostgreSQL accepts ISO format directly\r\n+    const result = await query(\r\n+      'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',\r\n+      [userId, token, expiresAt.toISOString()]\r\n+    );\r\n+    console.log('   ✅ Refresh token INSERT completed, rows:', result.rowCount);\r\n+    return result;\r\n+  } catch (error) {\r\n+    console.error('   ❌ saveRefreshToken error:', error);\r\n+    throw error;\r\n+  }\r\n };\r\n \r\n /**\r\n  * POST /api/auth/register\r\n@@ -106,44 +115,56 @@\n       .withMessage('Country must not exceed 100 characters')\r\n   ],\r\n   validate,\r\n   async (req, res, next) => {\r\n+    console.log('📝 Registration attempt:', req.body.email);\r\n     try {\r\n       const { email, password, role, first_name, last_name, phone, country, profile } = req.body;\r\n \r\n+      console.log('🔍 Step 1: Checking if user exists...');\r\n       // Check if user already exists\r\n       const existingUser = await query('SELECT id FROM users WHERE email = ?', [email]);\r\n-      \r\n+\r\n       if (existingUser.rows.length > 0) {\r\n+        console.log('⚠️  User already exists');\r\n         return res.status(409).json({\r\n           success: false,\r\n           message: 'Email already registered. Please login or use a different email.'\r\n         });\r\n       }\r\n \r\n+      console.log('🔐 Step 2: Hashing password...');\r\n       // Hash password\r\n       const saltRounds = 10;\r\n       const passwordHash = await bcrypt.hash(password, saltRounds);\r\n+      console.log('✅ Password hashed');\r\n \r\n+      console.log('📦 Step 3: Starting transaction...');\r\n       // Create user with profile in transaction\r\n       const result = await transaction(async (connection) => {\r\n+        console.log('   🔢 Generating UUID...');\r\n         // Generate UUID for the new user\r\n         const uuidResult = await connection.query('SELECT gen_random_uuid() as id');\r\n         const userId = uuidResult.rows[0].id;\r\n+        console.log('   ✅ UUID:', userId);\r\n \r\n+        console.log('   💾 Inserting user...');\r\n         // Insert user with the generated UUID\r\n         await connection.query(\r\n           `INSERT INTO users (id, email, password_hash, role, first_name, last_name, phone, country)\r\n            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,\r\n           [userId, email, passwordHash, role, first_name, last_name, phone, country]\r\n         );\r\n+        console.log('   ✅ User inserted');\r\n \r\n+        console.log('   📖 Fetching user...');\r\n         // Get the inserted user\r\n         const userResult = await connection.query(\r\n           'SELECT id, email, role, first_name, last_name, phone, country, is_verified, created_at FROM users WHERE id = ?',\r\n           [userId]\r\n         );\r\n         const user = userResult.rows[0];\r\n+        console.log('   ✅ User fetched');\r\n \r\n         // Create profile based on role\r\n         if (role === 'freelancer' && profile) {\r\n           await connection.query(\r\n@@ -183,15 +204,32 @@\n         }\r\n \r\n         return user;\r\n       });\r\n+      console.log('✅ Transaction completed');\r\n \r\n+      console.log('🔑 Step 4: Generating tokens...');\r\n       // Generate tokens\r\n       const { accessToken, refreshToken } = generateTokens(result);\r\n+      console.log('✅ Tokens generated');\r\n \r\n-      // Save refresh token to database\r\n-      await saveRefreshToken(result.id, refreshToken);\r\n+      console.log('💾 Step 5: Saving refresh token with 5s timeout...');\r\n+      // Save refresh token to database with timeout to prevent hanging\r\n+      try {\r\n+        await Promise.race([\r\n+          saveRefreshToken(result.id, refreshToken),\r\n+          new Promise((_, reject) =>\r\n+            setTimeout(() => reject(new Error('Refresh token save timeout after 5 seconds')), 5000)\r\n+          )\r\n+        ]);\r\n+        console.log('✅ Refresh token saved');\r\n+      } catch (tokenError) {\r\n+        // Log but don't fail registration if token save fails or times out\r\n+        console.error('⚠️  Failed to save refresh token (non-fatal):', tokenError.message);\r\n+        // Registration still succeeds - user can login with the returned tokens\r\n+      }\r\n \r\n+      console.log('✅ Registration successful!');\r\n       res.status(201).json({\r\n         success: true,\r\n         message: 'Registration successful',\r\n         data: {\r\n@@ -200,8 +238,9 @@\n           refreshToken\r\n         }\r\n       });\r\n     } catch (error) {\r\n+      console.error('❌ Registration error:', error);\r\n       next(error);\r\n     }\r\n   }\r\n );\r\n",
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "scripts\\backup.sh": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "src\\routes\\users.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "src\\routes\\proposals.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "src\\routes\\projects.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "src\\routes\\index.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "src\\routes\\contracts.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "src\\middleware\\validate.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "src\\middleware\\errorHandler.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "src\\db\\seed.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "src\\config\\database.js": {
+      "diff": "Index: src\\config\\database.js\n===================================================================\n--- src\\config\\database.js\n+++ src\\config\\database.js\n@@ -8,9 +8,9 @@\n // Create a PostgreSQL connection pool with explicit parameters\n // Using individual params instead of connection string to force IPv4\n const pool = new Pool({\n   host: 'aws-1-ap-southeast-2.pooler.supabase.com',\n-  port: 6543, // Transaction pooling port\n+  port: 5432, // Session pooling port - better for complex operations\n   database: 'postgres',\n   user: 'postgres.czzkdcukjqpmeipkadgt',\n   password: 'd4ugk19lZ17p1XA6',\n   ssl: { rejectUnauthorized: false },\n@@ -35,13 +35,17 @@\n \n // Handle pool errors\n pool.on('error', (err) => {\n   console.error('Unexpected error on PostgreSQL pool', err);\n+\n+  // Check for common Supabase errors\n   if (err.code === 'ECONNREFUSED') {\n-    console.error('Database connection was refused.');\n+    console.error('❌ Database connection was refused.');\n+  } else if (err.code === '53300') {\n+    console.error('❌ Database has too many connections.');\n+  } else if (err.code === 'XX000' || err.message?.includes('shutdown') || err.message?.includes('terminate_received')) {\n+    console.error('❌ Database connection terminated - Your Supabase database may be paused!');\n+    console.error('💡 Solution: Go to https://supabase.com dashboard and resume your database.');\n   }\n-  if (err.code === '53300') {\n-    console.error('Database has too many connections.');\n-  }\n });\n \n module.exports = pool;\n",
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "src\\middleware\\auth.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "src\\db\\queries.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "src\\db\\init.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "src\\db\\generateHashes.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "nginx\\nginx.conf": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "lib\\auth.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "entrypoint.sh": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "Dockerfile.prod": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "Dockerfile": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "docker-compose.yml": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "docker-compose.prod.yml": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "docker-compose.dev.yml": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "deploy.sh": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "lib\\validate.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "lib\\middleware.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "nginx\\conf.d\\app.conf": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "lib\\errorHandler.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "lib\\db.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "lib\\authHelpers.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\.env.example": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\.env.production.example": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "api\\users\\index.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "api\\users\\[id].js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\nginx.conf": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "api\\projects\\index.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "api\\projects\\[id].js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\vite.config.js": {
+      "diff": "Index: client\\vite.config.js\n===================================================================\n--- client\\vite.config.js\n+++ client\\vite.config.js\n@@ -3,9 +3,9 @@\n \n export default defineConfig({\n   plugins: [react()],\n   server: {\n-    port: 3000\n+    port: 5173\n   },\n   build: {\n     outDir: 'dist',\n     sourcemap: false,\n",
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "api\\proposals\\[id].js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\vercel.json": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "api\\proposals\\index.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\README.md": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\dist\\index.html": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\package.json": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\index.html": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\Dockerfile.prod": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "api\\health.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\Dockerfile": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "api\\proposals\\[id]\\reject.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "api\\contracts\\[id].js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "api\\contracts\\index.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "api\\proposals\\[id]\\accept.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\index.jsx": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\index.css": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\dist\\assets\\index-Ba-r_W9w.css": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\pages\\Login.jsx": {
+      "diff": "Index: client\\src\\pages\\Login.jsx\n===================================================================\n--- client\\src\\pages\\Login.jsx\n+++ client\\src\\pages\\Login.jsx\n@@ -1,5 +1,5 @@\n-import React, { useState } from 'react';\n+import React, { useState, useEffect } from 'react';\n import { useNavigate, Link } from 'react-router-dom';\n import { useAuth } from '../context/AuthContext';\n import { authAPI } from '../services/api';\n \n@@ -9,11 +9,20 @@\n     password: ''\n   });\n   const [error, setError] = useState('');\n   const [loading, setLoading] = useState(false);\n-  const { login } = useAuth();\n+  const [shouldNavigate, setShouldNavigate] = useState(false);\n+  const { login, isAuthenticated } = useAuth();\n   const navigate = useNavigate();\n \n+  // Navigate after authentication state is updated\n+  useEffect(() => {\n+    if (shouldNavigate && isAuthenticated) {\n+      console.log('Login: Navigation triggered - redirecting to dashboard');\n+      navigate('/', { replace: true });\n+    }\n+  }, [shouldNavigate, isAuthenticated, navigate]);\n+\n   const handleChange = (e) => {\n     setFormData({\n       ...formData,\n       [e.target.name]: e.target.value\n@@ -43,10 +52,10 @@\n \n       // Store tokens and user data\n       login(user, accessToken, refreshToken);\n \n-      // Redirect to dashboard\n-      navigate('/');\n+      // Trigger navigation via useEffect after state updates\n+      setShouldNavigate(true);\n     } catch (err) {\n       console.error('Login error:', err);\n       setError(\n         err.response?.data?.message || \n",
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\pages\\Dashboard.jsx": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\pages\\CreateProject.jsx": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\services\\api.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\pages\\ContractDetail.jsx": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\pages\\Register.jsx": {
+      "diff": "Index: client\\src\\pages\\Register.jsx\n===================================================================\n--- client\\src\\pages\\Register.jsx\n+++ client\\src\\pages\\Register.jsx\n@@ -1,5 +1,5 @@\n-import React, { useState } from 'react';\n+import React, { useState, useEffect } from 'react';\n import { useNavigate, Link } from 'react-router-dom';\n import { useAuth } from '../context/AuthContext';\n import { authAPI } from '../services/api';\n \n@@ -23,11 +23,20 @@\n     website: '',\n   });\n   const [error, setError] = useState('');\n   const [loading, setLoading] = useState(false);\n-  const { login } = useAuth();\n+  const [shouldNavigate, setShouldNavigate] = useState(false);\n+  const { login, isAuthenticated } = useAuth();\n   const navigate = useNavigate();\n \n+  // Navigate after authentication state is updated\n+  useEffect(() => {\n+    if (shouldNavigate && isAuthenticated) {\n+      console.log('Register: Navigation triggered - redirecting to dashboard');\n+      navigate('/', { replace: true });\n+    }\n+  }, [shouldNavigate, isAuthenticated, navigate]);\n+\n   const handleChange = (e) => {\n     setFormData({\n       ...formData,\n       [e.target.name]: e.target.value,\n@@ -87,15 +96,16 @@\n         };\n       }\n \n       const response = await authAPI.register(userData);\n+      console.log('Registration response:', response.data);\n       const { user, accessToken, refreshToken } = response.data.data;\n \n       // Store tokens and user data\n       login(user, accessToken, refreshToken);\n \n-      // Redirect to dashboard\n-      navigate('/');\n+      // Trigger navigation via useEffect after state updates\n+      setShouldNavigate(true);\n     } catch (err) {\n       console.error('Registration error:', err);\n       \n       // Handle validation errors\n",
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\pages\\ProjectDetail.jsx": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\pages\\Profile.jsx": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\pages\\MyProposals.jsx": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\pages\\MyProjects.jsx": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\dist\\assets\\index-EBMiv7T_.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\pages\\MyContracts.jsx": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\App.jsx": {
+      "diff": "Index: client\\src\\App.jsx\n===================================================================\n--- client\\src\\App.jsx\n+++ client\\src\\App.jsx\n@@ -16,9 +16,10 @@\n import ContractDetail from './pages/ContractDetail';\n \n // Protected Route wrapper\n const ProtectedRoute = ({ children }) => {\n-  const { isAuthenticated } = useAuth();\n+  const { isAuthenticated, user } = useAuth();\n+  console.log('ProtectedRoute: isAuthenticated =', isAuthenticated, 'user =', user);\n   return isAuthenticated ? children : <Navigate to=\"/login\" />;\n };\n \n function AppRoutes() {\n",
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\.gitignore": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\components\\Navbar.jsx": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "api\\auth\\login.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "api\\auth\\register.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "api\\auth\\refresh.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "api\\auth\\me.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "api\\auth\\logout.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\components\\ui\\Button.css": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "api\\auth\\logout-all.js": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\context\\ConfirmContext.jsx": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\context\\AuthContext.jsx": {
+      "diff": "Index: client\\src\\context\\AuthContext.jsx\n===================================================================\n--- client\\src\\context\\AuthContext.jsx\n+++ client\\src\\context\\AuthContext.jsx\n@@ -43,12 +43,14 @@\n     initAuth();\n   }, []);\n \n   const login = (userData, accessToken, refreshToken) => {\n+    console.log('AuthContext: login called with user:', userData);\n     setUser(userData);\n     localStorage.setItem('user', JSON.stringify(userData));\n     localStorage.setItem('accessToken', accessToken);\n     localStorage.setItem('refreshToken', refreshToken);\n+    console.log('AuthContext: tokens stored in localStorage');\n   };\n \n   const logout = async () => {\n     try {\n",
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\components\\ui\\LoadingSpinner.css": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\components\\ui\\Modal.jsx": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\components\\ui\\Modal.css": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\components\\ui\\LoadingSpinner.jsx": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\components\\ui\\ConfirmDialog.jsx": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\components\\ui\\ConfirmDialog.css": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\components\\ui\\Button.jsx": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\components\\ui\\SkeletonDetail.jsx": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "client\\src\\components\\ui\\SkeletonCard.jsx": {
+      "baseSnapshotId": "snapshot-1762406874546-11c7a356"
+    },
+    "CONTRACT_CREATION.md": {
+      "deleted": true
+    },
+    "CLAUDE.md": {
+      "deleted": true
+    },
+    "AUTH_ANALYSIS.md": {
+      "deleted": true
+    },
+    "AGENTS.md": {
+      "deleted": true
+    },
+    ".claude\\settings.local.json": {
+      "deleted": true
+    },
+    "SEED_CREDENTIALS.md": {
+      "deleted": true
+    },
+    "README.md": {
+      "deleted": true
+    },
+    "PROPOSAL_MANAGEMENT.md": {
+      "deleted": true
+    },
+    "src\\db\\seed.sql": {
+      "deleted": true
+    },
+    "src\\db\\schema.sql": {
+      "deleted": true
+    },
+    "src\\db\\migrations\\001_add_refresh_tokens.sql": {
+      "deleted": true
+    }
+  }
+}

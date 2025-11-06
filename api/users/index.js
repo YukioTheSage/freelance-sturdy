@@ -39,56 +39,69 @@ const getUsers = async (req, res) => {
  * Protected: Admin only
  */
 const createUser = async (req, res) => {
-  const { email, password, role, first_name, last_name, phone, country, profile } = req.body;
+  try {
+    const { email, password, role, first_name, last_name, phone, country, profile } = req.body;
 
-  // Validate required fields
-  if (!email || !role) {
-    return res.status(400).json({
-      success: false,
-      message: 'Email and role are required'
-    });
-  }
-
-  // Use transaction to create user and profile
-  const result = await transaction(async (connection) => {
-    // Insert user and return the inserted row
-    const userResult = await connection.query(
-      `INSERT INTO users (email, password_hash, role, first_name, last_name, phone, country)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
-       RETURNING id, email, role, first_name, last_name, phone, country, is_verified, created_at`,
-      [email, password, role, first_name, last_name, phone, country]
-    );
-    const user = userResult.rows[0];
-
-    // Create profile based on role
-    if (role === 'freelancer' && profile) {
-      await connection.query(
-        `INSERT INTO freelancer_profiles (user_id, bio, hourly_rate, experience_years, headline)
-         VALUES (?, ?, ?, ?, ?)`,
-        [user.id, profile.bio, profile.hourly_rate, profile.experience_years, profile.headline]
-      );
-      const profileResult = await connection.query(
-        'SELECT * FROM freelancer_profiles WHERE user_id = ?',
-        [user.id]
-      );
-      user.profile = profileResult.rows[0];
-    } else if (role === 'client' && profile) {
-      await connection.query(
-        `INSERT INTO client_profiles (user_id, company_name, company_size, website)
-         VALUES (?, ?, ?, ?)`,
-        [user.id, profile.company_name, profile.company_size, profile.website]
-      );
-      const profileResult = await connection.query(
-        'SELECT * FROM client_profiles WHERE user_id = ?',
-        [user.id]
-      );
-      user.profile = profileResult.rows[0];
+    // Validate required fields
+    if (!email || !role) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and role are required'
+      });
     }
 
-    return user;
-  });
+    // Use transaction to create user and profile
+    const result = await transaction(async (connection) => {
+      // Insert user and return the inserted row
+      const userResult = await connection.query(
+        `INSERT INTO users (email, password_hash, role, first_name, last_name, phone, country)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         RETURNING id, email, role, first_name, last_name, phone, country, is_verified, created_at`,
+        [email, password, role, first_name, last_name, phone, country]
+      );
+      const user = userResult.rows[0];
 
-  res.status(201).json({ success: true, data: result });
+      // Create profile based on role
+      if (role === 'freelancer' && profile) {
+        await connection.query(
+          `INSERT INTO freelancer_profiles (user_id, bio, hourly_rate, experience_years, headline)
+           VALUES (?, ?, ?, ?, ?)`,
+          [user.id, profile.bio, profile.hourly_rate, profile.experience_years, profile.headline]
+        );
+        const profileResult = await connection.query(
+          'SELECT * FROM freelancer_profiles WHERE user_id = ?',
+          [user.id]
+        );
+        user.profile = profileResult.rows[0];
+      } else if (role === 'client' && profile) {
+        await connection.query(
+          `INSERT INTO client_profiles (user_id, company_name, company_size, website)
+           VALUES (?, ?, ?, ?)`,
+          [user.id, profile.company_name, profile.company_size, profile.website]
+        );
+        const profileResult = await connection.query(
+          'SELECT * FROM client_profiles WHERE user_id = ?',
+          [user.id]
+        );
+        user.profile = profileResult.rows[0];
+      }
+
+      return user;
+    });
+
+    res.status(201).json({ success: true, data: result });
+  } catch (error) {
+    console.error('Error creating user:', error);
+
+    if (res.headersSent) {
+      return;
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to create user'
+    });
+  }
 };
 
 const handler = async (req, res) => {

@@ -55,14 +55,23 @@ const generateTokens = (user) => {
  * Helper function to save refresh token to database
  */
 const saveRefreshToken = async (userId, token) => {
+  console.log('   📝 saveRefreshToken called with userId:', userId);
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
 
-  // PostgreSQL accepts ISO format directly
-  await query(
-    'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
-    [userId, token, expiresAt.toISOString()]
-  );
+  try {
+    console.log('   🔄 Executing INSERT for refresh_tokens...');
+    // PostgreSQL accepts ISO format directly
+    const result = await query(
+      'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
+      [userId, token, expiresAt.toISOString()]
+    );
+    console.log('   ✅ Refresh token INSERT completed, rows:', result.rowCount);
+    return result;
+  } catch (error) {
+    console.error('   ❌ saveRefreshToken error:', error);
+    throw error;
+  }
 };
 
 /**
@@ -107,42 +116,54 @@ router.post(
   ],
   validate,
   async (req, res, next) => {
+    console.log('📝 Registration attempt:', req.body.email);
     try {
       const { email, password, role, first_name, last_name, phone, country, profile } = req.body;
 
+      console.log('🔍 Step 1: Checking if user exists...');
       // Check if user already exists
       const existingUser = await query('SELECT id FROM users WHERE email = ?', [email]);
-      
+
       if (existingUser.rows.length > 0) {
+        console.log('⚠️  User already exists');
         return res.status(409).json({
           success: false,
           message: 'Email already registered. Please login or use a different email.'
         });
       }
 
+      console.log('🔐 Step 2: Hashing password...');
       // Hash password
       const saltRounds = 10;
       const passwordHash = await bcrypt.hash(password, saltRounds);
+      console.log('✅ Password hashed');
 
+      console.log('📦 Step 3: Starting transaction...');
       // Create user with profile in transaction
       const result = await transaction(async (connection) => {
+        console.log('   🔢 Generating UUID...');
         // Generate UUID for the new user
         const uuidResult = await connection.query('SELECT gen_random_uuid() as id');
         const userId = uuidResult.rows[0].id;
+        console.log('   ✅ UUID:', userId);
 
+        console.log('   💾 Inserting user...');
         // Insert user with the generated UUID
         await connection.query(
           `INSERT INTO users (id, email, password_hash, role, first_name, last_name, phone, country)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [userId, email, passwordHash, role, first_name, last_name, phone, country]
         );
+        console.log('   ✅ User inserted');
 
+        console.log('   📖 Fetching user...');
         // Get the inserted user
         const userResult = await connection.query(
           'SELECT id, email, role, first_name, last_name, phone, country, is_verified, created_at FROM users WHERE id = ?',
           [userId]
         );
         const user = userResult.rows[0];
+        console.log('   ✅ User fetched');
 
         // Create profile based on role
         if (role === 'freelancer' && profile) {
@@ -184,13 +205,30 @@ router.post(
 
         return user;
       });
+      console.log('✅ Transaction completed');
 
+      console.log('🔑 Step 4: Generating tokens...');
       // Generate tokens
       const { accessToken, refreshToken } = generateTokens(result);
+      console.log('✅ Tokens generated');
 
-      // Save refresh token to database
-      await saveRefreshToken(result.id, refreshToken);
+      console.log('💾 Step 5: Saving refresh token with 5s timeout...');
+      // Save refresh token to database with timeout to prevent hanging
+      try {
+        await Promise.race([
+          saveRefreshToken(result.id, refreshToken),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Refresh token save timeout after 5 seconds')), 5000)
+          )
+        ]);
+        console.log('✅ Refresh token saved');
+      } catch (tokenError) {
+        // Log but don't fail registration if token save fails or times out
+        console.error('⚠️  Failed to save refresh token (non-fatal):', tokenError.message);
+        // Registration still succeeds - user can login with the returned tokens
+      }
 
+      console.log('✅ Registration successful!');
       res.status(201).json({
         success: true,
         message: 'Registration successful',
@@ -201,6 +239,7 @@ router.post(
         }
       });
     } catch (error) {
+      console.error('❌ Registration error:', error);
       next(error);
     }
   }

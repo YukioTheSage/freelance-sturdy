@@ -44,10 +44,12 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = (userData, accessToken, refreshToken) => {
+    console.log('AuthContext: login called with user:', userData);
     setUser(userData);
     localStorage.setItem('user', JSON.stringify(userData));
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
+    console.log('AuthContext: tokens stored in localStorage');
   };
 
   const logout = async () => {

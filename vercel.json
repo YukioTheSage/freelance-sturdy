@@ -3,18 +3,14 @@
   "name": "freelance-platform-api",
   "builds": [
     {
-      "src": "api/**/*.js",
+      "src": "src/server.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "src": "/health",
-      "dest": "/api/health"
+      "src": "/(.*)",
+      "dest": "/src/server.js"
     }
   ],
   "env": {

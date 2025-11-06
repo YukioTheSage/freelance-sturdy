@@ -66,65 +66,65 @@ const getProposals = async (req, res) => {
  * Protected: Only freelancers can submit proposals
  */
 const createProposal = async (req, res) => {
-  const {
-    project_id,
-    bid_amount,
-    hourly_rate,
-    estimated_hours,
-    cover_letter
-  } = req.body;
-
-  if (!project_id) {
-    return res.status(400).json({
-      success: false,
-      message: 'project_id is required'
-    });
-  }
-
-  // Get the freelancer profile for the authenticated user
-  const freelancerProfileResult = await query(
-    'SELECT id FROM freelancer_profiles WHERE user_id = ?',
-    [req.user.userId]
-  );
-
-  if (freelancerProfileResult.rows.length === 0) {
-    return res.status(403).json({
-      success: false,
-      message: 'Freelancer profile not found. Only freelancers can submit proposals.'
-    });
-  }
-
-  const freelancer_id = freelancerProfileResult.rows[0].id;
-
-  // Validate that the project exists
-  const projectCheck = await query(
-    'SELECT id FROM projects WHERE id = ?',
-    [project_id]
-  );
-
-  if (projectCheck.rows.length === 0) {
-    return res.status(404).json({
-      success: false,
-      message: 'Project not found'
-    });
-  }
-
-  // Check if a proposal already exists for this freelancer and project
-  const existingProposal = await query(
-    'SELECT id FROM proposals WHERE project_id = ? AND freelancer_id = ?',
-    [project_id, freelancer_id]
-  );
-
-  if (existingProposal.rows.length > 0) {
-    return res.status(409).json({
-      success: false,
-      message: 'You have already submitted a proposal for this project'
-    });
-  }
-
-  const proposalId = randomUUID();
-
   try {
+    const {
+      project_id,
+      bid_amount,
+      hourly_rate,
+      estimated_hours,
+      cover_letter
+    } = req.body;
+
+    if (!project_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'project_id is required'
+      });
+    }
+
+    // Get the freelancer profile for the authenticated user
+    const freelancerProfileResult = await query(
+      'SELECT id FROM freelancer_profiles WHERE user_id = ?',
+      [req.user.userId]
+    );
+
+    if (freelancerProfileResult.rows.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: 'Freelancer profile not found. Only freelancers can submit proposals.'
+      });
+    }
+
+    const freelancer_id = freelancerProfileResult.rows[0].id;
+
+    // Validate that the project exists
+    const projectCheck = await query(
+      'SELECT id FROM projects WHERE id = ?',
+      [project_id]
+    );
+
+    if (projectCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    // Check if a proposal already exists for this freelancer and project
+    const existingProposal = await query(
+      'SELECT id FROM proposals WHERE project_id = ? AND freelancer_id = ?',
+      [project_id, freelancer_id]
+    );
+
+    if (existingProposal.rows.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'You have already submitted a proposal for this project'
+      });
+    }
+
+    const proposalId = randomUUID();
+
     await query(
       `INSERT INTO proposals (id, project_id, freelancer_id, bid_amount, hourly_rate, estimated_hours, cover_letter)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -146,6 +146,12 @@ const createProposal = async (req, res) => {
 
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (error) {
+    console.error('Error creating proposal:', error);
+
+    if (res.headersSent) {
+      return;
+    }
+
     if (error.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({
         success: false,
@@ -158,7 +164,11 @@ const createProposal = async (req, res) => {
         message: 'Invalid reference: freelancer or project does not exist'
       });
     }
-    throw error;
+
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to create proposal'
+    });
   }
 };
 

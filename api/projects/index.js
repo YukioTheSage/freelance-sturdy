@@ -81,95 +81,108 @@ const getProjects = async (req, res) => {
  * Protected: Only clients can create projects
  */
 const createProject = async (req, res) => {
-  const {
-    title,
-    description,
-    project_type,
-    budget_min,
-    budget_max,
-    currency,
-    due_at,
-    skill_ids = []
-  } = req.body;
+  try {
+    const {
+      title,
+      description,
+      project_type,
+      budget_min,
+      budget_max,
+      currency,
+      due_at,
+      skill_ids = []
+    } = req.body;
 
-  // Get the client profile for the authenticated user
-  const clientProfileResult = await query(
-    'SELECT id FROM client_profiles WHERE user_id = ?',
-    [req.user.userId]
-  );
-
-  if (clientProfileResult.rows.length === 0) {
-    return res.status(403).json({
-      success: false,
-      message: 'Client profile not found. Only clients can create projects.'
-    });
-  }
-
-  const client_id = clientProfileResult.rows[0].id;
-  const projectId = randomUUID();
-
-  // Convert ISO datetime to MySQL format (YYYY-MM-DD HH:MM:SS)
-  let formattedDueAt = null;
-  if (due_at) {
-    formattedDueAt = new Date(due_at).toISOString().slice(0, 19).replace('T', ' ');
-  }
-
-  await transaction(async (connection) => {
-    await connection.query(
-      `INSERT INTO projects (id, client_id, title, description, project_type, budget_min, budget_max, currency, due_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        projectId,
-        client_id,
-        title,
-        description ?? null,
-        project_type,
-        budget_min ?? null,
-        budget_max ?? null,
-        currency ?? 'USD',
-        formattedDueAt
-      ]
+    // Get the client profile for the authenticated user
+    const clientProfileResult = await query(
+      'SELECT id FROM client_profiles WHERE user_id = ?',
+      [req.user.userId]
     );
 
-    if (Array.isArray(skill_ids) && skill_ids.length > 0) {
-      for (const skillId of skill_ids) {
-        await connection.query(
-          'INSERT INTO project_skills (project_id, skill_id) VALUES (?, ?)',
-          [projectId, skillId]
-        );
-      }
+    if (clientProfileResult.rows.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: 'Client profile not found. Only clients can create projects.'
+      });
     }
-  });
 
-  const projectResult = await query(
-    `SELECT p.*,
-            c.company_name,
-            CONCAT_WS(' ', u.first_name, u.last_name) AS client_name,
-            (SELECT COUNT(*) FROM proposals WHERE project_id = p.id) AS proposal_count
-     FROM projects p
-     JOIN client_profiles c ON p.client_id = c.id
-     JOIN users u ON c.user_id = u.id
-     WHERE p.id = ?`,
-    [projectId]
-  );
+    const client_id = clientProfileResult.rows[0].id;
+    const projectId = randomUUID();
 
-  if (projectResult.rows.length === 0) {
-    return res.status(500).json({ success: false, message: 'Failed to create project' });
+    // Convert ISO datetime to MySQL format (YYYY-MM-DD HH:MM:SS)
+    let formattedDueAt = null;
+    if (due_at) {
+      formattedDueAt = new Date(due_at).toISOString().slice(0, 19).replace('T', ' ');
+    }
+
+    await transaction(async (connection) => {
+      await connection.query(
+        `INSERT INTO projects (id, client_id, title, description, project_type, budget_min, budget_max, currency, due_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          projectId,
+          client_id,
+          title,
+          description ?? null,
+          project_type,
+          budget_min ?? null,
+          budget_max ?? null,
+          currency ?? 'USD',
+          formattedDueAt
+        ]
+      );
+
+      if (Array.isArray(skill_ids) && skill_ids.length > 0) {
+        for (const skillId of skill_ids) {
+          await connection.query(
+            'INSERT INTO project_skills (project_id, skill_id) VALUES (?, ?)',
+            [projectId, skillId]
+          );
+        }
+      }
+    });
+
+    const projectResult = await query(
+      `SELECT p.*,
+              c.company_name,
+              CONCAT_WS(' ', u.first_name, u.last_name) AS client_name,
+              (SELECT COUNT(*) FROM proposals WHERE project_id = p.id) AS proposal_count
+       FROM projects p
+       JOIN client_profiles c ON p.client_id = c.id
+       JOIN users u ON c.user_id = u.id
+       WHERE p.id = ?`,
+      [projectId]
+    );
+
+    if (projectResult.rows.length === 0) {
+      return res.status(500).json({ success: false, message: 'Failed to create project' });
+    }
+
+    const project = projectResult.rows[0];
+
+    const skillsResult = await query(
+      `SELECT s.id, s.name, s.category
+       FROM skills s
+       JOIN project_skills ps ON s.id = ps.skill_id
+       WHERE ps.project_id = ?`,
+      [projectId]
+    );
+    project.skills = skillsResult.rows;
+    project.proposal_count = Number(project.proposal_count || 0);
+
+    res.status(201).json({ success: true, data: project });
+  } catch (error) {
+    console.error('Error creating project:', error);
+
+    if (res.headersSent) {
+      return;
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to create project'
+    });
   }
-
-  const project = projectResult.rows[0];
-
-  const skillsResult = await query(
-    `SELECT s.id, s.name, s.category
-     FROM skills s
-     JOIN project_skills ps ON s.id = ps.skill_id
-     WHERE ps.project_id = ?`,
-    [projectId]
-  );
-  project.skills = skillsResult.rows;
-  project.proposal_count = Number(project.proposal_count || 0);
-
-  res.status(201).json({ success: true, data: project });
 };
 
 const handler = async (req, res) => {
